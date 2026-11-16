@@ -1,0 +1,15 @@
+{
+  "id":"supervisor-pressure",
+  "title":"Наказ керівника",
+  "subtitle":"Службова ієрархія та відповідальність",
+  "description":"Попередній огляд другого сценарію. Повний навчальний кейс, розгалуження та нормативні джерела ще готуються.",
+  "category":"Тиск керівництва",
+  "estimatedMinutes":10,
+  "difficulty":"Складний",
+  "audience":["Курсанти та слухачі"],
+  "conflict":{"leftLabel":"ЦІННІСТЬ А","left":"Лояльність до керівника","rightLabel":"ЦІННІСТЬ Б","right":"Підзвітність та обґрунтованість рішення"},
+  "legalSources":[],
+  "reviewStatus":"draft",
+  "aiAssisted":true,
+  "available":false
+}
