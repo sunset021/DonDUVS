@@ -796,8 +796,8 @@ const PLAY_STAGES: Record<string, Record<string, PlayStage>> = {
 
 export function ScenarioPlayPage() {
   const { id } = useParams<{ id: string }>();
-  const { language } = useAppLanguage();
-  const lang: 'uk' | 'en' = language === 'en' ? 'en' : 'uk';
+  const { lang: contextLang } = useAppLanguage();
+  const lang: 'uk' | 'en' = contextLang === 'en' ? 'en' : 'uk';
 
   const scenarioId =
     id === 'favor-for-friend' ? 'favor-for-friend' : 'supervisor-pressure';
