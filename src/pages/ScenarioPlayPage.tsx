@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, ShieldAlert, RotateCcw, Award, Users, Landmark, Lightbulb } from 'lucide-react';
+import {
+  ArrowLeft,
+  ShieldAlert,
+  RotateCcw,
+  Award,
+  Users,
+  Landmark,
+  Lightbulb,
+  Sparkles,
+} from 'lucide-react';
 import { findScenario } from '../scenarios';
-
-interface FeedbackData {
-  violated: string;
-  impact: string;
-  tradeoff: string;
-}
+import { useAppLanguage } from '../App';
 
 interface StageOption {
   id: string;
@@ -18,7 +22,9 @@ interface StageOption {
     peerTrust: number;
     institutionalTrust: number;
   };
-  feedback: FeedbackData;
+  violated: string;
+  consequences: string;
+  forecast: string;
   nextStageId: string | null;
 }
 
@@ -30,167 +36,465 @@ interface Stage {
   options: StageOption[];
 }
 
-export default function ScenarioPlayPage() {
-  const { id } = useParams<{ id: string }>();
-  const scenarioData = findScenario(id || '');
+const SCENARIOS_STEPS: Record<'uk' | 'en', Record<string, Record<string, Stage>>> = {
+  uk: {
+    'favor-for-friend': {
+      'step-1': {
+        id: 'step-1',
+        stepNumber: 1,
+        title: 'Етап 1: Вечірня перевірка',
+        situation:
+          'Ви — курсант старшого курсу, командир взводу. Перед вечірньою перевіркою ви помічаєте, що двоє курсантів самовільно залишили розташування. Черговий офіцер уже підходить.',
+        options: [
+          {
+            id: 'A',
+            label: 'Варіант А: Приховати відсутність',
+            actionText: 'Сказати черговому, що курсанти нібито в медпункті.',
+            metricsDelta: { integrity: -25, peerTrust: 30, institutionalTrust: -20 },
+            violated: 'Порушено вимоги службової дисципліни та достовірної доповіді.',
+            consequences: 'Ризик службової перевірки та втрати довіри при виявленні неправди.',
+            forecast:
+              'Звичка до неправдивих доповідей підвищує ризик процесуальних помилок і підриває довіру до органів державної влади і правосуддя.',
+            nextStageId: 'step-2',
+          },
+          {
+            id: 'Б',
+            label: 'Варіант Б: Доповісти правду за Статутом',
+            actionText: 'Доповісти фактичний стан справ і вжиті заходи.',
+            metricsDelta: { integrity: 30, peerTrust: -25, institutionalTrust: 25 },
+            violated: 'Порушень немає. Дотримано вимог статутної дисципліни.',
+            consequences: 'Керівництво має точні дані; можливе тимчасове напруження в групі.',
+            forecast:
+              'Дотримання правил знижує ризик помилок у майбутній службі та підтримує довіру до органів державної влади і правосуддя.',
+            nextStageId: 'step-2',
+          },
+        ],
+      },
+      'step-2': {
+        id: 'step-2',
+        stepNumber: 2,
+        title: 'Етап 2: Письмові пояснення',
+        situation:
+          'Керівництво вимагає пояснення щодо контролю особового складу. Частина групи радить вказати інший час виявлення відсутності.',
+        options: [
+          {
+            id: 'A',
+            label: 'Варіант А: Пом’якшити час у поясненні',
+            actionText: 'Написати неточний час, щоб зменшити наслідки.',
+            metricsDelta: { integrity: -15, peerTrust: 15, institutionalTrust: -15 },
+            violated: 'Порушено принцип повноти та достовірності службових матеріалів.',
+            consequences: 'Невідповідність фактам під час перевірки.',
+            forecast:
+              'Неточність у документах веде до процесуальних помилок і підриває довіру до органів державної влади і правосуддя.',
+            nextStageId: 'step-3',
+          },
+          {
+            id: 'Б',
+            label: 'Варіант Б: Написати об’єктивно й чесно',
+            actionText: 'Викласти всі обставини та визнати недоліки контролю.',
+            metricsDelta: { integrity: 25, peerTrust: -10, institutionalTrust: 25 },
+            violated: 'Порушень немає. Дотримано достовірності пояснень.',
+            consequences: 'Об’єктивна фіксація ситуації.',
+            forecast:
+              'Чесність і точність зміцнюють процесуальну культуру та зберігають довіру до органів державної влади і правосуддя.',
+            nextStageId: 'step-3',
+          },
+        ],
+      },
+      'step-3': {
+        id: 'step-3',
+        stepNumber: 3,
+        title: 'Етап 3: Профілактика та висновки',
+        situation:
+          'Перевірка позаду. Потрібно визначитися з подальшою профілактикою порушень дисципліни.',
+        options: [
+          {
+            id: 'A',
+            label: 'Варіант А: Обмежитися розмовою «між своїми»',
+            actionText: 'Не проводити системної профілактики.',
+            metricsDelta: { integrity: -10, peerTrust: 15, institutionalTrust: -10 },
+            violated: 'Недостатній превентивний підхід.',
+            consequences: 'Ризик повторення подібних ситуацій.',
+            forecast:
+              'Відсутність системних правил підвищує ризик помилок і шкодить довірі до органів державної влади і правосуддя.',
+            nextStageId: null,
+          },
+          {
+            id: 'Б',
+            label: 'Варіант Б: Системна профілактика',
+            actionText: 'Ініціювати розбір вимог Статуту та постійний контроль.',
+            metricsDelta: { integrity: 25, peerTrust: 10, institutionalTrust: 25 },
+            violated: 'Порушень немає. Реалізовано превентивний підхід.',
+            consequences: 'Чіткі правила та менший ризик повторних порушень.',
+            forecast:
+              'Системність знижує ризик помилок і зміцнює довіру до органів державної влади і правосуддя.',
+            nextStageId: null,
+          },
+        ],
+      },
+    },
+    'supervisor-pressure': {
+      'step-1': {
+        id: 'step-1',
+        stepNumber: 1,
+        title: 'Етап 1: Пропозиція «методички» за залік',
+        situation:
+          'Викладач пропонує придбати «методичку» за 500 грн за гарантований залік і просить тримати це в таємниці.',
+        options: [
+          {
+            id: 'A',
+            label: 'Варіант А: Придбати та зберегти таємницю',
+            actionText: 'Заплатити за «методичку» заради гарантованого заліку.',
+            metricsDelta: { integrity: -25, peerTrust: 15, institutionalTrust: -25 },
+            violated: 'Ознаки порушення академічної доброчесності та антикорупційних вимог.',
+            consequences: 'Втрата реальних знань і закріплення неформальних практик.',
+            forecast:
+              'Неформальні домовленості підвищують ризик помилок і підривають довіру до органів державної влади і правосуддя.',
+            nextStageId: 'step-2',
+          },
+          {
+            id: 'Б',
+            label: 'Варіант Б: Відмовитися та діяти за правилами',
+            actionText: 'Відмовитися, готуватися самостійно та повідомити уповноважений підрозділ.',
+            metricsDelta: { integrity: 30, peerTrust: -15, institutionalTrust: 25 },
+            violated: 'Порушень немає. Дотримано доброчесності.',
+            consequences: 'Збережено чесні знання; можливий тиск з боку оточення.',
+            forecast:
+              'Принциповість знижує ризик помилок і підтримує довіру до органів державної влади і правосуддя.',
+            nextStageId: 'step-2',
+          },
+        ],
+      },
+      'step-2': {
+        id: 'step-2',
+        stepNumber: 2,
+        title: 'Етап 2: Сесія та тиск оточення',
+        situation:
+          'Під час сесії виникає тиск: частина групи тисне, щоб не ускладнювати проходження контролю.',
+        options: [
+          {
+            id: 'A',
+            label: 'Варіант А: Поступитися під тиском',
+            actionText: 'Погодитися на неформальні умови, щоб закрити залік.',
+            metricsDelta: { integrity: -35, peerTrust: 20, institutionalTrust: -30 },
+            violated: 'Посилення ризиків порушення доброчесності та закону.',
+            consequences: 'Залежність від неформальних умов.',
+            forecast:
+              'Поступки тиску підвищують ризик помилок і шкодять довірі до органів державної влади і правосуддя.',
+            nextStageId: 'step-3',
+          },
+          {
+            id: 'Б',
+            label: 'Варіант Б: Офіційне звернення за процедурою',
+            actionText: 'Звернутися до уповноваженого підрозділу або керівництва.',
+            metricsDelta: { integrity: 30, peerTrust: -15, institutionalTrust: 30 },
+            violated: 'Порушень немає. Реалізовано право на об’єктивне оцінювання.',
+            consequences: 'Переведення ситуації у правову площину.',
+            forecast:
+              'Дія за процедурою зменшує ризик помилок і зберігає довіру до органів державної влади і правосуддя.',
+            nextStageId: 'step-3',
+          },
+        ],
+      },
+      'step-3': {
+        id: 'step-3',
+        stepNumber: 3,
+        title: 'Етап 3: Перевірка та пояснення',
+        situation:
+          'Розпочато перевірку щодо порушень доброчесності. Від вас вимагають пояснень.',
+        options: [
+          {
+            id: 'A',
+            label: 'Варіант А: Надати неповні або неправдиві пояснення',
+            actionText: 'Приховати відомі факти, щоб уникнути запитань.',
+            metricsDelta: { integrity: -30, peerTrust: 10, institutionalTrust: -35 },
+            violated: 'Порушено вимогу достовірності пояснень.',
+            consequences: 'Ризик відповідальності та втрати довіри.',
+            forecast:
+              'Недостовірність підриває точність і довіру до органів державної влади і правосуддя.',
+            nextStageId: null,
+          },
+          {
+            id: 'Б',
+            label: 'Варіант Б: Надати повні та правдиві пояснення',
+            actionText: 'Чесно викласти всі відомі обставини.',
+            metricsDelta: { integrity: 35, peerTrust: -10, institutionalTrust: 30 },
+            violated: 'Порушень немає. Дотримано обов’язку достовірної комунікації.',
+            consequences: 'Об’єктивність перевірки та правова чистота позиції.',
+            forecast:
+              'Правдивість зміцнює професійну культуру та підтримує довіру до органів державної влади і правосуддя.',
+            nextStageId: null,
+          },
+        ],
+      },
+    },
+  },
+  en: {
+    'favor-for-friend': {
+      'step-1': {
+        id: 'step-1',
+        stepNumber: 1,
+        title: 'Stage 1: Evening Roll Call',
+        situation:
+          'You are a senior cadet platoon leader. Just before evening roll call, you notice two cadets left without permission. The duty officer is already approaching.',
+        options: [
+          {
+            id: 'A',
+            label: 'Option A: Conceal the Absence',
+            actionText: 'Tell the duty officer the cadets are in the medical unit.',
+            metricsDelta: { integrity: -25, peerTrust: 30, institutionalTrust: -20 },
+            violated: 'Breach of service discipline and accurate official reporting.',
+            consequences: 'Risk of an official check and loss of trust if uncovered.',
+            forecast:
+              'Inaccurate reports increase procedural error risk and undermine public trust in state authorities and justice.',
+            nextStageId: 'step-2',
+          },
+          {
+            id: 'Б',
+            label: 'Option B: Report Honestly Under Statute',
+            actionText: 'Report the actual situation and actions taken.',
+            metricsDelta: { integrity: 30, peerTrust: -25, institutionalTrust: 25 },
+            violated: 'No violation. Statutory discipline is upheld.',
+            consequences: 'Leadership gets accurate facts; temporary peer tension is possible.',
+            forecast:
+              'Following rules lowers error risk in future service and supports public trust in state authorities and justice.',
+            nextStageId: 'step-2',
+          },
+        ],
+      },
+      'step-2': {
+        id: 'step-2',
+        stepNumber: 2,
+        title: 'Stage 2: Written Explanations',
+        situation:
+          'Leadership requests written explanations on supervision. Some peers suggest entering a different time of discovering the absence.',
+        options: [
+          {
+            id: 'A',
+            label: 'Option A: Soften the Time in the Report',
+            actionText: 'State an inaccurate time to reduce consequences.',
+            metricsDelta: { integrity: -15, peerTrust: 15, institutionalTrust: -15 },
+            violated: 'Breach of completeness and accuracy of official records.',
+            consequences: 'Contradiction with other review materials.',
+            forecast:
+              'Inaccurate records lead to procedural errors and harm trust in state authorities and justice.',
+            nextStageId: 'step-3',
+          },
+          {
+            id: 'Б',
+            label: 'Option B: Write Objectively and Honestly',
+            actionText: 'Present all facts and acknowledge supervision gaps.',
+            metricsDelta: { integrity: 25, peerTrust: -10, institutionalTrust: 25 },
+            violated: 'No violation. Accuracy of explanations is preserved.',
+            consequences: 'Transparent documentation of facts.',
+            forecast:
+              'Honesty and accuracy strengthen procedural culture and preserve trust in state authorities and justice.',
+            nextStageId: 'step-3',
+          },
+        ],
+      },
+      'step-3': {
+        id: 'step-3',
+        stepNumber: 3,
+        title: 'Stage 3: Prevention and Conclusions',
+        situation:
+          'The review is behind you. You need to decide how to prevent similar discipline breaches going forward.',
+        options: [
+          {
+            id: 'A',
+            label: 'Option A: Keep It to an Informal Chat',
+            actionText: 'Skip systemic preventive measures.',
+            metricsDelta: { integrity: -10, peerTrust: 15, institutionalTrust: -10 },
+            violated: 'Insufficient preventive approach.',
+            consequences: 'Higher risk of repeat incidents.',
+            forecast:
+              'Lack of systemic rules raises error risk and harms trust in state authorities and justice.',
+            nextStageId: null,
+          },
+          {
+            id: 'Б',
+            label: 'Option B: Systemic Prevention',
+            actionText: 'Initiate a structured review of rules and ongoing supervision.',
+            metricsDelta: { integrity: 25, peerTrust: 10, institutionalTrust: 25 },
+            violated: 'No violation. Preventive approach applied.',
+            consequences: 'Clearer standards and lower recurrence risk.',
+            forecast:
+              'Systemic prevention lowers error risk and strengthens trust in state authorities and justice.',
+            nextStageId: null,
+          },
+        ],
+      },
+    },
+    'supervisor-pressure': {
+      'step-1': {
+        id: 'step-1',
+        stepNumber: 1,
+        title: 'Stage 1: "Study Guide" Offer for a Pass',
+        situation:
+          'An instructor offers a "study guide" for 500 UAH for a guaranteed pass and asks to keep it secret.',
+        options: [
+          {
+            id: 'A',
+            label: 'Option A: Buy and Keep It Secret',
+            actionText: 'Pay for the guide to secure a guaranteed pass.',
+            metricsDelta: { integrity: -25, peerTrust: 15, institutionalTrust: -25 },
+            violated: 'Signs of academic integrity breach and anti-corruption risks.',
+            consequences: 'Loss of real knowledge and normalization of informal deals.',
+            forecast:
+              'Informal arrangements raise error risk and undermine trust in state authorities and justice.',
+            nextStageId: 'step-2',
+          },
+          {
+            id: 'Б',
+            label: 'Option B: Decline and Follow Rules',
+            actionText: 'Decline, study independently, and notify the authorized unit.',
+            metricsDelta: { integrity: 30, peerTrust: -15, institutionalTrust: 25 },
+            violated: 'No violation. Integrity is upheld.',
+            consequences: 'Honest preparation; possible peer pressure.',
+            forecast:
+              'Principled conduct lowers error risk and supports trust in state authorities and justice.',
+            nextStageId: 'step-2',
+          },
+        ],
+      },
+      'step-2': {
+        id: 'step-2',
+        stepNumber: 2,
+        title: 'Stage 2: Exams and Peer Pressure',
+        situation:
+          'During exams, pressure builds: some peers urge adapting so assessment goes smoothly.',
+        options: [
+          {
+            id: 'A',
+            label: 'Option A: Give In Under Pressure',
+            actionText: 'Accept informal terms to pass.',
+            metricsDelta: { integrity: -35, peerTrust: 20, institutionalTrust: -30 },
+            violated: 'Heightened risk of breaching integrity and law.',
+            consequences: 'Dependence on informal conditions.',
+            forecast:
+              'Yielding to pressure raises error risk and harms trust in state authorities and justice.',
+            nextStageId: 'step-3',
+          },
+          {
+            id: 'Б',
+            label: 'Option B: Official Appeal via Procedure',
+            actionText: 'Submit an official report regarding biased grading.',
+            metricsDelta: { integrity: 30, peerTrust: -15, institutionalTrust: 30 },
+            violated: 'No violation. Right to fair assessment exercised.',
+            consequences: 'Moves the issue into a legal process.',
+            forecast:
+              'Following procedure lowers error risk and preserves trust in state authorities and justice.',
+            nextStageId: 'step-3',
+          },
+        ],
+      },
+      'step-3': {
+        id: 'step-3',
+        stepNumber: 3,
+        title: 'Stage 3: Review and Explanations',
+        situation:
+          'An integrity review is underway. You are asked for explanations.',
+        options: [
+          {
+            id: 'A',
+            label: 'Option A: Give Incomplete or Untruthful Explanations',
+            actionText: 'Conceal known facts to avoid questions.',
+            metricsDelta: { integrity: -30, peerTrust: 10, institutionalTrust: -35 },
+            violated: 'Breach of duty to give truthful explanations.',
+            consequences: 'Risk of liability and loss of trust.',
+            forecast:
+              'Untruthfulness undermines accuracy and trust in state authorities and justice.',
+            nextStageId: null,
+          },
+          {
+            id: 'Б',
+            label: 'Option B: Give Full and Truthful Explanations',
+            actionText: 'State all known facts honestly.',
+            metricsDelta: { integrity: 35, peerTrust: -10, institutionalTrust: 30 },
+            violated: 'No violation. Duty of truthful communication upheld.',
+            consequences: 'Objective review and clear legal standing.',
+            forecast:
+              'Truthfulness strengthens professional culture and supports trust in state authorities and justice.',
+            nextStageId: null,
+          },
+        ],
+      },
+    },
+  },
+};
 
-  const [currentStageId, setCurrentStageId] = useState<string>('step-1');
-  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
-  const [isCompleted, setIsCompleted] = useState<boolean>(false);
-  
+const UI_TEXT = {
+  uk: {
+    backToOverview: 'До опису сценарію',
+    stepOf: 'Крок',
+    ofThree: 'з 3',
+    integrity: 'Доброчесність',
+    peerTrust: 'Довіра колективу',
+    institutionalTrust: 'Інституційна довіра',
+    chooseOption: 'Оберіть варіант дії:',
+    summaryTitle: 'Підсумок проходження',
+    assessment: 'Оцінка:',
+    consequences: 'Наслідки:',
+    forecast: 'Прогноз:',
+    retry: 'Пройти ще раз',
+    toCatalog: 'До каталогу сценаріїв',
+  },
+  en: {
+    backToOverview: 'Back to scenario overview',
+    stepOf: 'Step',
+    ofThree: 'of 3',
+    integrity: 'Integrity',
+    peerTrust: 'Peer trust',
+    institutionalTrust: 'Institutional trust',
+    chooseOption: 'Choose an option:',
+    summaryTitle: 'Completion summary',
+    assessment: 'Assessment:',
+    consequences: 'Consequences:',
+    forecast: 'Forecast:',
+    retry: 'Try again',
+    toCatalog: 'Back to scenarios',
+  },
+} as const;
+
+export function ScenarioPlayPage() {
+  const { id } = useParams<{ id: string }>();
+  const { lang } = useAppLanguage();
+  const scenarioId = id === 'supervisor-pressure' ? 'supervisor-pressure' : 'favor-for-friend';
+  const scenarioData = findScenario(scenarioId);
+  const stages = SCENARIOS_STEPS[lang][scenarioId];
+  const t = UI_TEXT[lang];
+
+  const [currentStageId, setCurrentStageId] = useState('step-1');
+  const [isCompleted, setIsCompleted] = useState(false);
   const [metrics, setMetrics] = useState({
     integrity: 50,
     peerTrust: 50,
     institutionalTrust: 50,
   });
+  const [history, setHistory] = useState<{ title: string; option: StageOption }[]>([]);
 
-  const [history, setHistory] = useState<{ stageTitle: string; optionLabel: string; feedback: FeedbackData; delta: { integrity: number; peerTrust: number; institutionalTrust: number } }[]>([]);
+  useEffect(() => {
+    setCurrentStageId('step-1');
+    setIsCompleted(false);
+    setMetrics({ integrity: 50, peerTrust: 50, institutionalTrust: 50 });
+    setHistory([]);
+  }, [scenarioId, lang]);
 
-  const stages: Record<string, Stage> = {
-    'step-1': {
-      id: 'step-1',
-      stepNumber: 1,
-      title: 'Етап 1: Вечірня перевірка та непомітна прогалина',
-      situation:
-        'Ви — курсант старшого курсу, командир взводу. За кілька хвилин до вечірньої перевірки ви помічаєте, що двоє курсантів із вашого взводу самовільно залишили розташування. Черговий офіцер уже починає обхід.',
-      options: [
-        {
-          id: 'A',
-          label: 'Варіант А: Покривання відсутніх (Курсантська солідарність)',
-          actionText: 'Збрехати черговому офіцеру про те, що курсанти нібито перебувають у медсанчастині.',
-          metricsDelta: { integrity: -25, peerTrust: 30, institutionalTrust: -20 },
-          feedback: {
-            violated:
-              'Порушено ст. 11, 16 Дисциплінарного статуту Національної поліції України, вимоги Статуту щодо правдивості доповіді керівництву.',
-            impact:
-              'У разі виявлення обману під час перевірки журналів медсанчастини загрожує розгляд на дисциплінарній комісії.',
-            tradeoff:
-              'Збережено мікроклімат у колективі та авторитет серед курсантів, проте втрачено особисту службову чесноту.',
-          },
-          nextStageId: 'step-2',
-        },
-        {
-          id: 'Б',
-          label: 'Варіант Б: Принципова доповідь за Статутом',
-          actionText: 'Доповісти черговому офіцеру реальний стан речей без жодних прикрас.',
-          metricsDelta: { integrity: 30, peerTrust: -35, institutionalTrust: 25 },
-          feedback: {
-            violated:
-              'Жодних нормативних актів з вашого боку не порушено. Виконано вимоги щодо неухильного дотримання службової дисципліни.',
-            impact:
-              'Командування відзначить вашу принциповість, але курсанти сприймуть це як здачу своїх.',
-            tradeoff:
-              'Повна юридична та дисциплінарна безпека для вас особисто ціною внутрішнього конфлікту у підрозділі.',
-          },
-          nextStageId: 'step-2',
-        },
-      ],
-    },
-    'step-2': {
-      id: 'step-2',
-      stepNumber: 2,
-      title: 'Етап 2: Наслідки та реакція колективу',
-      situation:
-        'Ситуація набула розголосу. Керівництво курсу вимагає пояснень щодо того, чому контроль за особовим складом було ослаблено. Перед вами ставлять питання про офіційне оформлення пояснювальної записки.',
-      options: [
-        {
-          id: 'A',
-          label: 'Варіант А: Написати рапорт обтічно (пом\'якшити провину)',
-          actionText: 'Вказати у пояснювальній, що про відсутність стало відомо лише в останню хвилину.',
-          metricsDelta: { integrity: -15, peerTrust: 15, institutionalTrust: -10 },
-          feedback: {
-            violated:
-              'Порушено принцип повноти та достовірності службової документації (ст. 3 Закону України Про Національну поліцію).',
-            impact:
-              'Створюється ризик перекладання відповідальності, а формальне приховування реального часу виявлення може розкритися.',
-            tradeoff:
-              'М\'якше дисциплінарне стягнення для курсу, але балансування на межі службової нещирості.',
-          },
-          nextStageId: 'step-3',
-        },
-        {
-          id: 'Б',
-          label: 'Варіант Б: Повна і детальна правда у рапорті',
-          actionText: 'Викласти всі факти як є, взявши на себе відповідальність за недогляд командира взводу.',
-          metricsDelta: { integrity: 25, peerTrust: -15, institutionalTrust: 30 },
-          feedback: {
-            violated:
-              'Порушень немає. Продемонстровано високий стандарт службової культури та готовність відповідати за підрозділ.',
-            impact:
-              'Офіцери бачать у вас зрілого майбутнього офіцера, здатного адекватно реагувати на кризові ситуації.',
-            tradeoff:
-              'Ви отримуєте офіційне зауваження за слабкий контроль, проте зберігаєте бездоганну репутацію перед керівництвом.',
-          },
-          nextStageId: 'step-3',
-        },
-      ],
-    },
-    'step-3': {
-      id: 'step-3',
-      stepNumber: 3,
-      title: 'Етап 3: Висновки та управлінське рішення',
-      situation:
-        'Інцидент вичерпано, проте настав час проводити профілактичну роботу з курсантами, які самовільно залишали розташування. Як ви поступите як командир?',
-      options: [
-        {
-          id: 'A',
-          label: 'Варіант А: Вирішити все всередині колективу',
-          actionText: 'Провести сувору розмову віч-на-віч, не виносячи сміття з хати на офіційний рівень.',
-          metricsDelta: { integrity: -10, peerTrust: 20, institutionalTrust: -15 },
-          feedback: {
-            violated:
-              'Неформальне вирішення службових проступків порушує порядок реагування на правопорушення, передбачений відомчими інструкціями.',
-            impact:
-              'Проблема може повторитися, оскільки офіційного запобіжного правового механізму задіяно не було.',
-            tradeoff:
-              'Збережено авторитет хлопців перед керівництвом, але відсутній правовий виховний ефект.',
-          },
-          nextStageId: null,
-        },
-        {
-          id: 'Б',
-          label: 'Варіант Б: Ініціювати офіційне профілактичне заняття',
-          actionText: 'Доповісти керівництву про готовність провести відкрите обговорення норм дисципліни.',
-          metricsDelta: { integrity: 25, peerTrust: 10, institutionalTrust: 25 },
-          feedback: {
-            violated:
-              'Повністю дотримано норм чинного законодавства та статутних вимог щодо виховної роботи у колективі.',
-            impact:
-              'Формується нульова толерантність до порушень серед курсантів, підняття загальної правової свідомості.',
-            tradeoff:
-              'Вимагає значних моральних зусиль та подолання тиску колективу, проте дає довгостроковий позитивний результат.',
-          },
-          nextStageId: null,
-        },
-      ],
-    },
-  };
+  const stage = stages[currentStageId] || stages['step-1'];
 
-  const currentStage = stages[currentStageId] || stages['step-1'];
-
-  const handleConfirm = () => {
-    const selectedOption = currentStage.options.find((opt) => opt.id === selectedOptionId);
-    if (!selectedOption) return;
-
+  const handleChoose = (option: StageOption) => {
     setMetrics((prev) => ({
-      integrity: Math.min(100, Math.max(0, prev.integrity + selectedOption.metricsDelta.integrity)),
-      peerTrust: Math.min(100, Math.max(0, prev.peerTrust + selectedOption.metricsDelta.peerTrust)),
-      institutionalTrust: Math.min(100, Math.max(0, prev.institutionalTrust + selectedOption.metricsDelta.institutionalTrust)),
+      integrity: Math.min(100, Math.max(0, prev.integrity + option.metricsDelta.integrity)),
+      peerTrust: Math.min(100, Math.max(0, prev.peerTrust + option.metricsDelta.peerTrust)),
+      institutionalTrust: Math.min(
+        100,
+        Math.max(0, prev.institutionalTrust + option.metricsDelta.institutionalTrust)
+      ),
     }));
+    setHistory((prev) => [...prev, { title: stage.title, option }]);
 
-    setHistory((prev) => [
-      ...prev,
-      {
-        stageTitle: currentStage.title,
-        optionLabel: selectedOption.label,
-        feedback: selectedOption.feedback,
-        delta: selectedOption.metricsDelta,
-      },
-    ]);
-
-    if (selectedOption.nextStageId) {
-      setCurrentStageId(selectedOption.nextStageId);
-      setSelectedOptionId(null);
+    if (option.nextStageId && stages[option.nextStageId]) {
+      setCurrentStageId(option.nextStageId);
     } else {
       setIsCompleted(true);
     }
@@ -198,146 +502,81 @@ export default function ScenarioPlayPage() {
 
   const handleRestart = () => {
     setCurrentStageId('step-1');
-    setSelectedOptionId(null);
     setIsCompleted(false);
     setMetrics({ integrity: 50, peerTrust: 50, institutionalTrust: 50 });
     setHistory([]);
   };
 
-  const getVerdict = (integrityScore: number) => {
-    if (integrityScore >= 80) {
-      return {
-        title: '💎 Еталон професійної доброчесності',
-        desc: 'Ви дієте виключно в межах закону, статутів та моральних принципів офіцера поліції. Керівництво бачить у вас лідера майбутнього, хоча колеги можуть вважати вас занадто принциповим.',
-        color: 'text-teal-400 border-teal-500/40 bg-teal-950/30',
-        tips: [
-          'Продовжуйте тримати високий стандарт правової культури, але працюйте над комунікацією з колективом, щоб принциповість не сприймалася як відірваність від команди.',
-          'Використовуйте свій авторитет для того, щоб м’яко спрямовувати колег у правове русло без зайвого тиску.',
-        ],
-      };
-    } else if (integrityScore >= 45) {
-      return {
-        title: '⚖️ Прагматичний балансир',
-        desc: 'Ви намагаєтеся маневрувати між людськими стосунками у колективі та суворими вимогами інструкцій. Це зменшує конфлікти, але створює ризики дисциплінарної відповідальності.',
-        color: 'text-amber-400 border-amber-500/40 bg-amber-950/30',
-        tips: [
-          'Зверніть увагу на те, що намагання догодити всім часто призводить до розмивання службової відповідальності.',
-          'У реальних кризових ситуаціях завжди ставте вимоги закону та статутів вище за особисті симпатії до колег.',
-        ],
-      };
-    } else {
-      return {
-        title: '⚠️ Зона ризику: Порушення службової дисципліни',
-        desc: 'Схильність покривати порушення заради курсантської солідарності призвела до критичного зниження рівня доброчесності. Такий стиль поведінки загрожує розслідуванням.',
-        color: 'text-rose-400 border-rose-500/40 bg-rose-950/30',
-        tips: [
-          'Терміново перегляньте ставлення до норм Дисциплінарного статуту НПУ: «солідарність», що суперечить закону, є прямим шляхом до службових стягнень.',
-          'Пам’ятайте, що справжня підтримка товаришів полягає не в тому, щоб приховати їхній проступок, а в тому, щоб допомогти їм уникнути помилок у майбутньому.',
-        ],
-      };
-    }
-  };
-
   if (isCompleted) {
-    const verdict = getVerdict(metrics.integrity);
-
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex items-center justify-center">
-        <div className="max-w-3xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl space-y-6">
-          <div className="flex items-center gap-3 text-teal-400 border-b border-slate-800 pb-4">
-            <Award className="w-9 h-9" />
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <Link
+          to={`/scenarios/${scenarioId}`}
+          className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 text-sm font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" /> {t.backToOverview}
+        </Link>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 sm:p-8 space-y-6">
+          <div className="flex items-center gap-3 text-teal-300">
+            <Award className="w-8 h-8" />
             <div>
-              <h1 className="text-2xl font-bold">Фінальний звіт симулятора</h1>
-              <p className="text-xs text-slate-400">Аналіз прийнятих управлінських та етичних рішень</p>
+              <h1 className="text-2xl font-bold text-white">{t.summaryTitle}</h1>
+              <p className="text-sm text-slate-400">{scenarioData?.title}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400 flex items-center gap-1.5"><ShieldAlert className="w-4 h-4 text-teal-400"/> Доброчесність</span>
-                <span className="font-bold text-teal-400">{metrics.integrity}%</span>
-              </div>
-              <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                <div className="bg-teal-500 h-full transition-all duration-500" style={{ width: `${metrics.integrity}%` }}></div>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <div className="text-xs text-slate-400">{t.integrity}</div>
+              <div className="text-2xl font-bold text-teal-300">{metrics.integrity}%</div>
             </div>
-
-            <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400 flex items-center gap-1.5"><Users className="w-4 h-4 text-blue-400"/> Довіра взводу</span>
-                <span className="font-bold text-blue-400">{metrics.peerTrust}%</span>
-              </div>
-              <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${metrics.peerTrust}%` }}></div>
-              </div>
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <div className="text-xs text-slate-400">{t.peerTrust}</div>
+              <div className="text-2xl font-bold text-sky-300">{metrics.peerTrust}%</div>
             </div>
-
-            <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400 flex items-center gap-1.5"><Landmark className="w-4 h-4 text-purple-400"/> Довіра керівництва</span>
-                <span className="font-bold text-purple-400">{metrics.institutionalTrust}%</span>
-              </div>
-              <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                <div className="bg-purple-500 h-full transition-all duration-500" style={{ width: `${metrics.institutionalTrust}%` }}></div>
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <div className="text-xs text-slate-400">{t.institutionalTrust}</div>
+              <div className="text-2xl font-bold text-amber-300">
+                {metrics.institutionalTrust}%
               </div>
             </div>
           </div>
 
-          <div className={`p-5 rounded-xl border ${verdict.color} space-y-2`}>
-            <div className="font-bold text-lg">{verdict.title}</div>
-            <p className="text-sm text-slate-300 leading-relaxed">{verdict.desc}</p>
+          <div className="space-y-4">
+            {history.map((item, idx) => (
+              <div
+                key={idx}
+                className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2"
+              >
+                <div className="text-xs font-bold text-teal-300">{item.title}</div>
+                <div className="text-base font-bold text-white">{item.option.label}</div>
+                <p className="text-sm text-rose-200">
+                  <strong>{t.assessment}</strong> {item.option.violated}
+                </p>
+                <p className="text-sm text-slate-200">
+                  <strong>{t.consequences}</strong> {item.option.consequences}
+                </p>
+                <p className="text-sm text-sky-200">
+                  <strong>{t.forecast}</strong> {item.option.forecast}
+                </p>
+              </div>
+            ))}
           </div>
 
-          {/* Блок експертних порад */}
-          <div className="bg-slate-950/90 p-5 rounded-xl border border-teal-500/30 space-y-3">
-            <div className="flex items-center gap-2 text-teal-400 font-semibold text-sm">
-              <Lightbulb className="w-5 h-5" />
-              <span>Рекомендації та поради на що звернути увагу:</span>
-            </div>
-            <ul className="space-y-2 text-sm text-slate-300">
-              {verdict.tips.map((tip, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <span className="text-teal-400 font-bold">•</span>
-                  <span>{tip}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Хронологія ваших рішень:</h3>
-            <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-2">
-              {history.map((item, index) => (
-                <div key={index} className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-teal-400 uppercase">
-                    <span>{item.stageTitle}</span>
-                    <span className="text-slate-400">
-                      Зміна доброчесності: <span className={item.delta.integrity >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{item.delta.integrity > 0 ? `+${item.delta.integrity}%` : `${item.delta.integrity}%`}</span>
-                    </span>
-                  </div>
-                  <div className="text-sm font-medium text-slate-200">Вибір: {item.optionLabel}</div>
-                  <div className="text-xs text-slate-300 space-y-1 pt-1 border-t border-slate-900">
-                    <div><span className="text-rose-400 font-semibold">Порушено:</span> {item.feedback.violated}</div>
-                    <div><span className="text-amber-400 font-semibold">Наслідок:</span> {item.feedback.impact}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-wrap gap-3">
             <button
+              type="button"
               onClick={handleRestart}
-              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold inline-flex items-center gap-2 cursor-pointer"
             >
-              <RotateCcw className="w-4 h-4" /> Пройти сценарій знову
+              <RotateCcw className="w-4 h-4" /> {t.retry}
             </button>
             <Link
               to="/scenarios"
-              className="flex-1 py-3 bg-teal-600 hover:bg-teal-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 text-center"
+              className="px-5 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold inline-flex items-center gap-2"
             >
-              До каталогу сценаріїв
+              <Sparkles className="w-4 h-4" /> {t.toCatalog}
             </Link>
           </div>
         </div>
@@ -346,87 +585,74 @@ export default function ScenarioPlayPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 text-sm font-medium transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" /> Назад до сценаріїв {scenarioData ? `(${scenarioData.title})` : ''}
-          </Link>
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <Link
+          to={`/scenarios/${scenarioId}`}
+          className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 text-sm font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" /> {t.backToOverview}
+        </Link>
+        <span className="text-xs font-bold text-teal-300 bg-teal-950/50 border border-teal-500/30 px-3 py-1.5 rounded-full">
+          {t.stepOf} {stage.stepNumber} {t.ofThree}
+        </span>
+      </div>
+
+      <div className="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 sm:p-8 space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center gap-3">
+            <ShieldAlert className="w-5 h-5 text-teal-400 shrink-0" />
+            <div>
+              <div className="text-xs text-slate-400">{t.integrity}</div>
+              <div className="text-lg font-bold text-teal-300">{metrics.integrity}%</div>
+            </div>
+          </div>
+          <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center gap-3">
+            <Users className="w-5 h-5 text-sky-400 shrink-0" />
+            <div>
+              <div className="text-xs text-slate-400">{t.peerTrust}</div>
+              <div className="text-lg font-bold text-sky-300">{metrics.peerTrust}%</div>
+            </div>
+          </div>
+          <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center gap-3">
+            <Landmark className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <div className="text-xs text-slate-400">{t.institutionalTrust}</div>
+              <div className="text-lg font-bold text-amber-300">
+                {metrics.institutionalTrust}%
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-          <div className="flex items-center justify-between">
-            <div className="text-teal-400 font-semibold uppercase tracking-wider text-xs bg-teal-950/60 px-3 py-1 rounded-full border border-teal-800/50">
-              КРОК {currentStage.stepNumber} З 3
-            </div>
-            <div className="text-slate-400 text-xs flex items-center gap-1">
-              Симулятор етичного вибору НПУ
-            </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-white">{stage.title}</h1>
+          <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-200 leading-relaxed">
+            {stage.situation}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-xs font-bold uppercase text-slate-400 flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-amber-400" />
+            <span>{t.chooseOption}</span>
           </div>
 
-          <h1 className="text-xl font-bold text-slate-100">{currentStage.title}</h1>
-          <p className="text-slate-300 leading-relaxed bg-slate-950/40 p-4 rounded-xl border border-slate-800/80">
-            {currentStage.situation}
-          </p>
-
-          <div className="space-y-3 pt-2">
-            {currentStage.options.map((opt) => {
-              const isSelected = selectedOptionId === opt.id;
-              return (
-                <div
-                  key={opt.id}
-                  onClick={() => setSelectedOptionId(opt.id)}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                    isSelected
-                      ? 'bg-slate-800/90 border-teal-500 shadow-lg ring-1 ring-teal-500/50'
-                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'
-                  }`}
-                >
-                  <div className="font-semibold text-teal-300">{opt.label}</div>
-                  <div className="text-sm text-slate-300 mt-1">{opt.actionText}</div>
-
-                  {isSelected && (
-                    <div className="mt-4 p-4 rounded-xl bg-slate-950/90 border border-teal-500/40 text-sm space-y-3">
-                      <div className="font-semibold text-teal-400 flex items-center gap-2">
-                        <ShieldAlert className="w-4 h-4 text-teal-400" />
-                        <span>Правовий та управлінський аналіз (Статті та норми):</span>
-                      </div>
-
-                      <div className="text-slate-200">
-                        <span className="font-semibold text-rose-400">Що порушено: </span>
-                        {opt.feedback.violated}
-                      </div>
-
-                      <div className="text-slate-200">
-                        <span className="font-semibold text-amber-400">На що це вплине: </span>
-                        {opt.feedback.impact}
-                      </div>
-
-                      <div className="text-slate-300 pt-2 border-t border-slate-800">
-                        <span className="font-semibold text-emerald-400">Компроміс: </span>
-                        {opt.feedback.tradeoff}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {selectedOptionId && (
+          {stage.options.map((option) => (
             <button
-              onClick={handleConfirm}
-              className="w-full mt-4 py-3.5 bg-teal-600 hover:bg-teal-500 text-white font-semibold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              key={option.id}
+              type="button"
+              onClick={() => handleChoose(option)}
+              className="w-full text-left p-5 rounded-2xl border border-slate-800 bg-slate-900/75 hover:border-teal-400/60 hover:bg-slate-900 transition-all cursor-pointer space-y-1.5"
             >
-              <CheckCircle2 className="w-5 h-5" /> 
-              {currentStageId === 'step-3' ? 'Завершити сценарій та переглянути підсумковий звіт' : 'Підтвердити вибір та перейти далі'}
+              <div className="text-base font-bold text-teal-300">{option.label}</div>
+              <p className="text-sm text-slate-200">{option.actionText}</p>
             </button>
-          )}
+          ))}
         </div>
       </div>
     </div>
   );
 }
+
+export default ScenarioPlayPage;
