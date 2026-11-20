@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { Header } from './components/Header';
 import { HomePage } from './pages/HomePage';
 import { CatalogPage } from './pages/CatalogPage';
 import { ScenarioOverviewPage } from './pages/ScenarioOverviewPage';
@@ -58,7 +57,6 @@ export function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
-        <Header />
         <main className="flex-1">
           <Routes>
             <Route path="/" element={<HomePage />} />
